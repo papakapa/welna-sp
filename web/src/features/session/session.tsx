@@ -153,7 +153,7 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
       generateNext();
       inputRef.current?.focus();
     }, 150);
-  }, [isCalibration, normalSession, initialSession]);
+  }, [isCalibration, normalSession, initialSession, answer]);
 
   const finish = useCallback(() => {
     if (isCalibration && initialSession) {
@@ -177,7 +177,7 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
         </div>
 
         <button
-          className="rounded-xl border border-neutral-700 px-4 py-2 text-neutral-300"
+          className="rounded-xl border border-neutral-700 px-4 py-2 text-neutral-300 cursor-pointer"
           onClick={onCancel}
         >
           Cancel
@@ -205,6 +205,7 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
                 value={answer}
                 onChange={(event) => setAnswer(event.target.value)}
                 inputMode="numeric"
+                autoFocus
                 className={[
                   "w-full rounded-2xl border bg-neutral-950 px-5 py-4 text-center text-3xl font-bold outline-none",
                   feedback === "correct"
@@ -217,7 +218,7 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
               />
 
               <button
-                className="mt-4 w-full rounded-xl bg-white px-5 py-3 font-semibold text-neutral-950"
+                className="mt-4 w-full rounded-xl bg-white px-5 py-3 font-semibold text-neutral-950 cursor-pointer"
                 type="submit"
               >
                 Submit

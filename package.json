@@ -1,0 +1,12 @@
+{
+  "name": "welna-sp",
+  "version": "0.0.1",
+  "scripts": {
+    "start": "bash ./start.sh",
+    "web:install": "npm --prefix web ci",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:preview": "npm --prefix web run preview",
+    "web:lint": "npm --prefix web run lint"
+  }
+}

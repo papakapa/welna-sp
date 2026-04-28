@@ -107,27 +107,7 @@ export const Dashboard = ({
           <p className="text-neutral-500">No sessions yet. Start with calibration.</p>
         ) : (
           <div className="space-y-3">
-            {latestSessions.map((session) => (
-              <div
-                key={session.id}
-                className="flex items-center justify-between rounded-xl bg-neutral-950 p-4"
-              >
-                <div>
-                  <p className="font-medium capitalize">{session.mode}</p>
-                  <p className="text-sm text-neutral-500">
-                    Level {session.levelBefore} → {session.levelAfter}
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <p className="font-semibold">{session.score}</p>
-                  <p className="text-sm text-neutral-500">
-                    {session.accuracy}% /{" "}
-                    {(session.averageAnswerTimeMs / 1000).toFixed(2)}s
-                  </p>
-                </div>
-              </div>
-            ))}
+            {latestSessions.map((session) => (<SessionCard session={session} key={session.id} />))}
           </div>
         )}
       </section>
@@ -140,6 +120,34 @@ const LevelCard = ({ title, level }: { title: string; level: number }) => {
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
       <p className="text-sm text-neutral-500">{title}</p>
       <p className="mt-2 text-3xl font-bold">Level {level}</p>
+    </div>
+  );
+}
+
+const SessionCard = ({ session }: { session: SessionResult }) => {
+  const levelProgress = session.levelAfter - session.levelBefore;
+
+  return (
+    <div
+      className="flex items-center justify-between rounded-xl bg-neutral-950 p-4"
+    >
+      <div>
+        <p className="font-medium capitalize">{session.mode}</p>
+        <p className={[
+          "text-sm",
+          ...(levelProgress === 0 ? ["text-neutral-500"] : levelProgress > 0 ? ["text-green-400"] : ["text-red-400"]),
+        ].join(" ")}>
+          Level {session.levelBefore} → {session.levelAfter}
+        </p>
+      </div>
+
+      <div className="text-right">
+        <p className="font-semibold">{session.score}</p>
+        <p className="text-sm text-neutral-500">
+          {session.accuracy}% /{" "}
+          {(session.averageAnswerTimeMs / 1000).toFixed(2)}s
+        </p>
+      </div>
     </div>
   );
 }
@@ -162,7 +170,7 @@ const ModeButton = ({ active, label, description, onClick }: {
   return (
     <button
       className={[
-        "rounded-xl border p-4 text-left transition",
+        "rounded-xl border p-4 text-left transition cursor-pointer",
         active
           ? "border-white bg-white text-neutral-950"
           : "border-neutral-800 bg-neutral-950 text-neutral-100 hover:border-neutral-500",
