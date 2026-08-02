@@ -1,12 +1,12 @@
 import type { DudeAttempt, TrainingMode } from "../types/types";
 import { clampLevel, estimateNextLevel } from './level';
 
-export type CalibrationState = {
+export interface CalibrationState {
   mode: TrainingMode;
   currentLevel: number;
   levelHistory: number[];
   attemptsSinceLastAdjustment: DudeAttempt[];
-};
+}
 
 export const createCalibrationState = (mode: TrainingMode): CalibrationState => {
   return {

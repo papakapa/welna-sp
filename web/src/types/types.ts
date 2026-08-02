@@ -1,14 +1,16 @@
+export const TrainingMode = {
+  ADDITION: 'addition',
+  MULTIPLICATION: 'multiplication',
+  MIX: 'mix',
+} as const;
+
+export type TrainingMode = typeof TrainingMode[keyof typeof TrainingMode];
+
 export interface DudeProgress {
   additionLevel: number;
   multiplicationLevel: number;
   mixLevel: number;
-  hasCompletedCalibration: boolean;
-}
-
-export enum TrainingMode {
-  ADDITION = 'addition',
-  MULTIPLICATION = 'multiplication',
-  MIX = 'mix',
+  calibratedModes: Record<TrainingMode, boolean>;
 }
 
 export type Operation = '+' | '*' | '-' | '/';
@@ -42,7 +44,7 @@ export interface SessionState {
   attempts: DudeAttempt[];
 }
 
-export type SessionResult = {
+export interface SessionResult {
   id: string;
   mode: TrainingMode;
   startedAt: number;
@@ -62,11 +64,12 @@ export type SessionResult = {
 
   bestStreak: number;
   score: number;
-};
+  isCalibration: boolean;
+}
 
-export type DifficultyLevel = {
+export interface DifficultyLevel {
   level: number;
   label: string;
   description: string;
 
-};
+}

@@ -1,6 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
 import { type SessionResult, TrainingMode } from './types/types';
-import { getMixedLevel } from './engine/level';
 import { Dashboard } from './features/dashboard/dashboard';
 import { Session } from './features/session/session';
 import { Results } from './features/results/results';
@@ -16,13 +15,9 @@ export const App = () => {
   const [isCalibration, setIsCalibration] = useState(false);
 
   const currentLevel = useMemo(() => {
-    if (selectedMode === "addition") return storedState.progress.additionLevel;
-    if (selectedMode === "multiplication") return storedState.progress.multiplicationLevel;
-
-    return getMixedLevel(
-      storedState.progress.additionLevel,
-      storedState.progress.multiplicationLevel
-    );
+    if (selectedMode === TrainingMode.ADDITION) return storedState.progress.additionLevel;
+    if (selectedMode === TrainingMode.MULTIPLICATION) return storedState.progress.multiplicationLevel;
+    return storedState.progress.mixLevel;
   }, [selectedMode, storedState.progress]);
 
   const startTraining = useCallback((mode: TrainingMode) => {
@@ -39,17 +34,24 @@ export const App = () => {
 
   const handleFinish = useCallback((result: SessionResult) => {
     const nextState: StoredState = {
+      version: 2,
       progress: {
         ...storedState.progress,
-        hasCompletedCalibration: true,
+        calibratedModes: result.isCalibration
+          ? { ...storedState.progress.calibratedModes, [result.mode]: true }
+          : storedState.progress.calibratedModes,
         additionLevel:
-          result.mode === TrainingMode.ADDITION || result.mode === TrainingMode.MIX
+          result.mode === TrainingMode.ADDITION
             ? result.levelAfter
             : storedState.progress.additionLevel,
         multiplicationLevel:
-          result.mode === TrainingMode.MULTIPLICATION || result.mode === TrainingMode.MIX
+          result.mode === TrainingMode.MULTIPLICATION
             ? result.levelAfter
             : storedState.progress.multiplicationLevel,
+        mixLevel:
+          result.mode === TrainingMode.MIX
+            ? result.levelAfter
+            : storedState.progress.mixLevel,
       },
       sessions: [result, ...storedState.sessions].slice(0, 50),
     };
@@ -58,14 +60,14 @@ export const App = () => {
     saveState(nextState);
     setLatestResult(result);
     setScreen("results");
-  }, [storedState, setStoredState, saveState, setLatestResult, setScreen]);
+  }, [storedState]);
 
   const resetProgress = useCallback(() => {
     setStoredState(defaultState);
     saveState(defaultState);
     setLatestResult(null);
     setScreen("dashboard");
-  }, [setStoredState, saveState, setLatestResult, setScreen]);
+  }, []);
 
   return (
     <main className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -86,7 +88,7 @@ export const App = () => {
           <Session
             mode={selectedMode}
             level={currentLevel}
-            isCalibration={isCalibration || !storedState.progress.hasCompletedCalibration}
+            isCalibration={isCalibration}
             onFinish={handleFinish}
             onCancel={() => setScreen("dashboard")}
           />

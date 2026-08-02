@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, useCallback } from 'react';
 import type { SessionResult, TrainingMode, SessionState, Example } from '../../types/types';
 import {
   createSession,
@@ -28,6 +28,7 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
   const [timeLeft, setTimeLeft] = useState(60);
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
+  const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
 
   const [normalSession, setNormalSession] = useState<SessionState | null>(() =>
     isCalibration
@@ -49,10 +50,15 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
   );
 
   const [currentExample, setCurrentExample] = useState<Example | null>(null);
-  const questionStartedAtRef = useRef(Date.now());
+  const questionStartedAtRef = useRef(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const transitionTimerRef = useRef<number | null>(null);
+  const hasGeneratedFirstQuestionRef = useRef(false);
 
-  const attempts = normalSession?.attempts ?? initialSession?.attempts ?? [];
+  const attempts = useMemo(
+    () => normalSession?.attempts ?? initialSession?.attempts ?? [],
+    [initialSession?.attempts, normalSession?.attempts],
+  );
   const currentLevel =
     normalSession?.currentLevel ??
     initialSession?.calibration.currentLevel ??
@@ -68,24 +74,6 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
 
     return streak;
   }, [attempts]);
-
-  useEffect(() => {
-    generateNext();
-    inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      finish();
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setTimeLeft((value) => value - 1);
-    }, 1000);
-
-    return () => window.clearTimeout(timer);
-  }, [timeLeft]);
 
   const generateNext = useCallback(() => {
     if (isCalibration) {
@@ -111,16 +99,53 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
 
       return addExampleToSession(session, example);
     });
-  }, [isCalibration, normalSession, initialSession]);
+  }, [isCalibration]);
+
+  const finish = useEffectEvent(() => {
+    if (isCalibration && initialSession) {
+      onFinish(finishInitialSession(initialSession));
+      return;
+    }
+
+    if (normalSession) {
+      onFinish(finishSession(normalSession));
+    }
+  });
+
+  useEffect(() => {
+    if (hasGeneratedFirstQuestionRef.current) return;
+    hasGeneratedFirstQuestionRef.current = true;
+    generateNext();
+  }, [generateNext]);
+
+  useEffect(() => {
+    if (feedback === null && currentExample) {
+      inputRef.current?.focus();
+    }
+  }, [currentExample, feedback]);
+
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      finish();
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setTimeLeft((value) => value - 1);
+    }, 1000);
+
+    return () => window.clearTimeout(timer);
+  }, [timeLeft]);
 
   const handleSubmit = useCallback((event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!currentExample || answer.trim() === "") return;
+    if (!currentExample || answer.trim() === "" || feedback) return;
 
     const isCorrect = Number(answer.trim()) === currentExample.answer;
 
     setFeedback(isCorrect ? "correct" : "wrong");
+    setCorrectAnswer(currentExample.answer);
 
     if (isCalibration) {
       setInitialSession((session) => {
@@ -148,23 +173,20 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
 
     setAnswer("");
 
-    window.setTimeout(() => {
+    transitionTimerRef.current = window.setTimeout(() => {
       setFeedback(null);
+      setCorrectAnswer(null);
       generateNext();
-      inputRef.current?.focus();
-    }, 150);
-  }, [isCalibration, normalSession, initialSession, answer]);
+    }, isCorrect ? 300 : 1400);
+  }, [answer, currentExample, feedback, generateNext, isCalibration]);
 
-  const finish = useCallback(() => {
-    if (isCalibration && initialSession) {
-      onFinish(finishInitialSession(initialSession));
-      return;
-    }
-
-    if (normalSession) {
-      onFinish(finishSession(normalSession));
-    }
-  }, [isCalibration, normalSession, initialSession, onFinish]);
+  useEffect(() => {
+    return () => {
+      if (transitionTimerRef.current !== null) {
+        window.clearTimeout(transitionTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <div className="space-y-8">
@@ -206,6 +228,8 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
                 onChange={(event) => setAnswer(event.target.value)}
                 inputMode="numeric"
                 autoFocus
+                disabled={feedback !== null}
+                aria-label="Answer"
                 className={[
                   "w-full rounded-2xl border bg-neutral-950 px-5 py-4 text-center text-3xl font-bold outline-none",
                   feedback === "correct"
@@ -213,27 +237,35 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
                     : feedback === "wrong"
                       ? "border-red-500"
                       : "border-neutral-700 focus:border-white",
+                  feedback ? "cursor-not-allowed opacity-80" : "",
                 ].join(" ")}
                 placeholder="Answer"
               />
 
               <button
-                className="mt-4 w-full rounded-xl bg-white px-5 py-3 font-semibold text-neutral-950 cursor-pointer"
+                className="mt-4 w-full rounded-xl bg-white px-5 py-3 font-semibold text-neutral-950 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                 type="submit"
+                disabled={feedback !== null}
               >
                 Submit
               </button>
             </form>
 
             {feedback && (
-              <p
+              <div
+                aria-live="polite"
                 className={[
                   "mt-5 font-semibold",
                   feedback === "correct" ? "text-green-400" : "text-red-400",
                 ].join(" ")}
               >
-                {feedback === "correct" ? "Correct" : "Wrong"}
-              </p>
+                <p>{feedback === "correct" ? "Correct" : "Not quite"}</p>
+                {feedback === "wrong" && (
+                  <p className="mt-1 text-sm font-normal text-neutral-300">
+                    Correct answer: {correctAnswer}
+                  </p>
+                )}
+              </div>
             )}
           </>
         ) : (

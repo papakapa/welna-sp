@@ -2,7 +2,8 @@ import type { DudeAttempt, SessionResult, SessionState } from "../types/types";
 
 export const buildSessionResult = (
   session: SessionState,
-  levelAfter: number
+  levelAfter: number,
+  isCalibration = false,
 ): SessionResult => {
   const totalExamples = session.attempts.length;
   const correctAnswers = session.attempts.filter((a) => a.isCorrect).length;
@@ -26,6 +27,7 @@ export const buildSessionResult = (
     correctAnswers,
     accuracy,
     averageAnswerTimeMs,
+    averageLevel: getAverageLevel(session.attempts, session.levelBefore),
   });
 
   return {
@@ -44,6 +46,7 @@ export const buildSessionResult = (
     slowestAnswerMs,
     bestStreak,
     score,
+    isCalibration,
   };
 }
 
@@ -67,12 +70,21 @@ const calculateScore = (input: {
   correctAnswers: number;
   accuracy: number;
   averageAnswerTimeMs: number;
+  averageLevel: number;
 }): number => {
   if (input.correctAnswers === 0) return 0;
 
   const avgSeconds = input.averageAnswerTimeMs / 1000;
   const accuracyMultiplier = input.accuracy / 100;
   const speedMultiplier = Math.max(0.5, 3 / Math.max(avgSeconds, 0.5));
+  const difficultyMultiplier = 0.75 + input.averageLevel * 0.25;
 
-  return Math.round(input.correctAnswers * 100 * accuracyMultiplier * speedMultiplier);
+  return Math.round(
+    input.correctAnswers * 100 * accuracyMultiplier * speedMultiplier * difficultyMultiplier
+  );
 }
+
+const getAverageLevel = (attempts: DudeAttempt[], fallbackLevel: number): number => {
+  if (attempts.length === 0) return fallbackLevel;
+  return attempts.reduce((sum, attempt) => sum + attempt.example.level, 0) / attempts.length;
+};

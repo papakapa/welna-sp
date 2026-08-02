@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { type DudeProgress, type SessionResult, TrainingMode } from '../../types/types';
 import { Button } from '../../components/button';
 
@@ -11,10 +12,6 @@ interface DashboardProps {
   onResetProgress: () => void;
 }
 
-const getMixedLevel = (progress: DudeProgress) => {
-  return Math.max(progress.additionLevel, progress.multiplicationLevel);
-};
-
 export const Dashboard = ({
   progress,
   sessions,
@@ -24,22 +21,30 @@ export const Dashboard = ({
   onStartCalibration,
   onResetProgress
 }: DashboardProps) => {
-  const latestSessions = sessions.slice(0, 5);
+  const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
+  const modeSessions = sessions.filter((session) => session.mode === selectedMode);
+  const latestSessions = modeSessions.slice(0, 5);
+  const isModeCalibrated = progress.calibratedModes[selectedMode];
+  const selectedModeLabel = getModeLabel(selectedMode);
+  const confirmReset = () => {
+    setIsResetConfirmationOpen(false);
+    onResetProgress();
+  };
 
   const averageAccuracy =
-    sessions.length === 0
+    modeSessions.length === 0
       ? 0
       : Math.round(
-        sessions.reduce((sum, s) => sum + s.accuracy, 0) /
-        sessions.length
+        modeSessions.reduce((sum, s) => sum + s.accuracy, 0) /
+        modeSessions.length
       );
 
   const averageTime =
-    sessions.length === 0
+    modeSessions.length === 0
       ? 0
       : Math.round(
-        sessions.reduce((sum, s) => sum + s.averageAnswerTimeMs, 0) /
-        sessions.length
+        modeSessions.reduce((sum, s) => sum + s.averageAnswerTimeMs, 0) /
+        modeSessions.length
       );
 
   return (
@@ -59,7 +64,7 @@ export const Dashboard = ({
         <LevelCard title="Multiplication" level={progress.multiplicationLevel} />
         <LevelCard
           title="Mixed"
-          level={getMixedLevel(progress)}
+          level={progress.mixLevel}
         />
       </section>
 
@@ -87,21 +92,46 @@ export const Dashboard = ({
           />
         </div>
 
+        {!isModeCalibrated && (
+          <div className="mt-5 rounded-xl border border-amber-900/70 bg-amber-950/30 p-4">
+            <p className="font-semibold text-amber-200">Calibrate {selectedModeLabel} first</p>
+            <p className="mt-1 text-sm text-amber-100/70">
+              A one-minute calibration adjusts the starting difficulty to your current speed and accuracy.
+            </p>
+          </div>
+        )}
+
         <div className="mt-5 flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => onStart(selectedMode)}>Start 60s Session</Button>
-          <Button variant="secondary" onClick={() => onStartCalibration(selectedMode)}>Run Calibration</Button>
-          <Button variant="danger" onClick={onResetProgress}>Reset Progress</Button>
+          {isModeCalibrated ? (
+            <>
+              <Button variant="primary" onClick={() => onStart(selectedMode)}>Start 60s Session</Button>
+              <Button variant="secondary" onClick={() => onStartCalibration(selectedMode)}>Recalibrate</Button>
+            </>
+          ) : (
+            <Button variant="primary" onClick={() => onStartCalibration(selectedMode)}>
+              Start {selectedModeLabel} Calibration
+            </Button>
+          )}
+          <Button variant="danger" onClick={() => setIsResetConfirmationOpen(true)}>Reset Progress</Button>
         </div>
       </section>
 
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-sm uppercase tracking-[0.2em] text-neutral-500">Selected mode</p>
+          <h2 className="mt-1 text-2xl font-semibold">{selectedModeLabel} statistics</h2>
+        </div>
+        <p className="text-sm text-neutral-500">Changes when you choose a mode above</p>
+      </div>
+
       <section className="grid gap-3 sm:grid-cols-3">
-        <StatCard title="Sessions" value={sessions.length.toString()} />
+        <StatCard title="Sessions" value={modeSessions.length.toString()} />
         <StatCard title="Avg Accuracy" value={`${averageAccuracy}%`} />
         <StatCard title="Avg Time" value={`${(averageTime / 1000).toFixed(2)}s`} />
       </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
-        <h2 className="mb-4 text-xl font-semibold">Recent sessions</h2>
+        <h2 className="mb-4 text-xl font-semibold">Recent {selectedModeLabel.toLowerCase()} sessions</h2>
 
         {latestSessions.length === 0 ? (
           <p className="text-neutral-500">No sessions yet. Start with calibration.</p>
@@ -111,6 +141,26 @@ export const Dashboard = ({
           </div>
         )}
       </section>
+
+      {isResetConfirmationOpen && (
+        <div
+          className="fixed inset-0 z-10 grid place-items-center bg-black/80 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reset-title"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-6 shadow-2xl">
+            <h2 id="reset-title" className="text-2xl font-bold">Reset all progress?</h2>
+            <p className="mt-3 text-neutral-400">
+              This removes every locally saved level, calibration, and session. This action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setIsResetConfirmationOpen(false)}>Cancel</Button>
+              <Button variant="danger" onClick={confirmReset}>Reset Everything</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -132,12 +182,22 @@ const SessionCard = ({ session }: { session: SessionResult }) => {
       className="flex items-center justify-between rounded-xl bg-neutral-950 p-4"
     >
       <div>
-        <p className="font-medium capitalize">{session.mode}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium capitalize">{session.mode}</p>
+          {session.isCalibration && (
+            <span className="rounded-full bg-amber-950 px-2 py-0.5 text-xs font-medium text-amber-300">
+              Calibration
+            </span>
+          )}
+        </div>
         <p className={[
           "text-sm",
           ...(levelProgress === 0 ? ["text-neutral-500"] : levelProgress > 0 ? ["text-green-400"] : ["text-red-400"]),
         ].join(" ")}>
           Level {session.levelBefore} → {session.levelAfter}
+        </p>
+        <p className="mt-1 text-xs text-neutral-600">
+          {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(session.startedAt)}
         </p>
       </div>
 
@@ -151,6 +211,12 @@ const SessionCard = ({ session }: { session: SessionResult }) => {
     </div>
   );
 }
+
+const getModeLabel = (mode: TrainingMode): string => {
+  if (mode === TrainingMode.ADDITION) return 'Addition';
+  if (mode === TrainingMode.MULTIPLICATION) return 'Multiplication';
+  return 'Mixed';
+};
 
 const StatCard = ({ title, value }: { title: string; value: string }) => {
   return (

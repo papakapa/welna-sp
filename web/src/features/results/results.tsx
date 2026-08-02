@@ -12,13 +12,18 @@ export const Results = ({ result, onStartAgain, onBackHome }: ResultsProps) => {
     <div className="space-y-8">
       <header>
         <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">
-          Session Complete
+          {result.isCalibration ? "Calibration Complete" : "Session Complete"}
         </p>
         <h1 className="mt-2 text-4xl font-bold">Results</h1>
+        {result.isCalibration && (
+          <p className="mt-2 text-neutral-400">
+            Your {result.mode} training level is now set to {result.levelAfter}.
+          </p>
+        )}
       </header>
 
       <section className="rounded-3xl border border-neutral-800 bg-neutral-900 p-8 text-center">
-        <p className="text-neutral-500">Score</p>
+        <p className="text-neutral-500">Difficulty-adjusted score</p>
         <p className="mt-2 text-6xl font-bold">{result.score}</p>
 
         <p className="mt-4 text-neutral-400 capitalize">
@@ -39,7 +44,9 @@ export const Results = ({ result, onStartAgain, onBackHome }: ResultsProps) => {
       </section>
 
       <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={onStartAgain}>Start Again</Button>
+        <Button variant="primary" onClick={onStartAgain}>
+          {result.isCalibration ? "Start Training" : "Start Again"}
+        </Button>
         <Button variant="secondary" onClick={onBackHome}>Back Home</Button>
       </div>
     </div>

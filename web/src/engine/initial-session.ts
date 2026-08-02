@@ -65,7 +65,6 @@ export const submitInitialAnswer = (
     questionStartedAt: number;
   }
 ): InitialSessionState => {
-  console.log(input);
   const userAnswer = parseUserAnswer(input.userAnswerRaw);
   const isCorrect = userAnswer === input.example.answer;
 
@@ -98,7 +97,8 @@ export const finishInitialSession = (session: InitialSessionState): SessionResul
       ...session,
       currentLevel: estimatedLevel,
     },
-    estimatedLevel
+    estimatedLevel,
+    true,
   );
 }
 

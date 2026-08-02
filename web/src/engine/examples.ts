@@ -2,10 +2,10 @@ import type { Operation, Example, TrainingMode } from "../types/types";
 import { clampLevel } from "./level";
 import { createId, randomInt, randomItem } from "./random";
 
-type GenerateExampleParams = {
+interface GenerateExampleParams {
   mode: TrainingMode;
   level: number;
-};
+}
 
 export const generateExample = (params: GenerateExampleParams): Example => {
   const level = clampLevel(params.level);

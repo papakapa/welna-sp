@@ -137,7 +137,7 @@ export const calculateNextLevel = (session: SessionState): number => {
 
 export const estimateNextLevel = (level: number, accuracy: number, avgTime: number) => {
   const targetTime = LEVEL_TARGET_TIME[level] || 6;
-  let temporaryLevel = level;
+  const temporaryLevel = level;
   if (accuracy >= 90 && avgTime < targetTime) {
     return temporaryLevel + 1;
   }
