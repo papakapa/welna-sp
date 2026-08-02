@@ -130,6 +130,7 @@ export const App = () => {
               : startTraining(latestResult.mode)}
             onBackHome={() => setScreen("dashboard")}
             onPracticeMistakes={() => startMistakePractice(latestResult.mode)}
+            sessions={storedState.sessions}
           />
         )}
       </div>

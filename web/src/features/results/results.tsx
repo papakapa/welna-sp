@@ -1,12 +1,19 @@
 import { useMemo, useRef, useState } from 'react';
-import type { DudeAttempt, SessionConfig, SessionResult } from "../../types/types";
+import type { DudeAttempt, SessionResult } from "../../types/types";
 import { Button } from '../../components/button';
+import {
+  formatSessionConfig,
+  getComparableTrainingSessions,
+  getRecordHighlights,
+  getSessionComparison,
+} from '../../engine/performance';
 
 interface ResultsProps {
   result: SessionResult;
   onStartAgain: () => void;
   onBackHome: () => void;
   onPracticeMistakes: () => void;
+  sessions: SessionResult[];
 }
 
 type ReviewFilter = 'all' | 'mistakes' | 'slow';
@@ -16,12 +23,22 @@ export const Results = ({
   onStartAgain,
   onBackHome,
   onPracticeMistakes,
+  sessions,
 }: ResultsProps) => {
   const [reviewFilter, setReviewFilter] = useState<ReviewFilter>(
     result.wrongAnswers > 0 ? 'mistakes' : 'all',
   );
   const reviewRef = useRef<HTMLDivElement | null>(null);
   const recordedMistakes = result.attempts.filter((attempt) => !attempt.isCorrect);
+  const isRecordEligible = result.sessionType === 'training';
+  const previousComparableSessions = useMemo(
+    () => isRecordEligible
+      ? getComparableTrainingSessions(sessions, result.mode, result.config, result.id)
+      : [],
+    [isRecordEligible, result.config, result.id, result.mode, sessions],
+  );
+  const recordHighlights = getRecordHighlights(result, previousComparableSessions);
+  const comparison = getSessionComparison(result, previousComparableSessions);
   const slowThresholdMs = Math.max(2000, result.averageAnswerTimeMs * 1.25);
   const slowAttempts = useMemo(
     () => result.attempts.filter((attempt) => attempt.timeMs > slowThresholdMs),
@@ -79,6 +96,56 @@ export const Results = ({
         <ResultCard title="Wrong" value={result.wrongAnswers.toString()} />
         <ResultCard title="Total" value={result.totalExamples.toString()} />
       </section>
+
+      {isRecordEligible && previousComparableSessions.length === 0 && (
+        <section className="rounded-2xl border border-sky-900 bg-sky-950/30 p-5">
+          <p className="font-semibold text-sky-200">First {formatSessionConfig(result.config)} result recorded</p>
+          <p className="mt-1 text-sm text-sky-100/70">
+            This session is now the baseline for future comparisons in {result.mode} mode.
+          </p>
+        </section>
+      )}
+
+      {recordHighlights.length > 0 && (
+        <section className="rounded-2xl border border-amber-800 bg-amber-950/30 p-5">
+          <p className="text-sm uppercase tracking-[0.2em] text-amber-400">New personal best</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {recordHighlights.map((highlight) => (
+              <span className="rounded-full bg-amber-300 px-3 py-1 text-sm font-semibold text-amber-950" key={highlight}>
+                {highlight}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {comparison && (
+        <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-neutral-500">Recent performance</p>
+            <h2 className="mt-1 text-xl font-semibold">Compared with your recent average</h2>
+            <p className="mt-1 text-sm text-neutral-500">
+              Based on {comparison.sampleSize} comparable {comparison.sampleSize === 1 ? 'session' : 'sessions'}.
+            </p>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {result.config.kind === 'untimed' ? (
+              <>
+                <ComparisonCard title="Correct Answers" value={formatSigned(comparison.correctAnswersDifference)} />
+                <ComparisonCard title="Accuracy" value={`${formatSigned(comparison.accuracyDifference)} pp`} />
+                <ComparisonCard title="Best Streak" value={formatSigned(comparison.bestStreakDifference)} />
+              </>
+            ) : (
+              <>
+                <ComparisonCard title="Score" value={formatSigned(comparison.scoreDifference)} />
+                <ComparisonCard title="Accuracy" value={`${formatSigned(comparison.accuracyDifference)} pp`} />
+                <ComparisonCard title="Answer Pace" value={formatPaceDifference(comparison.averageTimeDifferenceMs)} />
+              </>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-wrap gap-3">
         {recordedMistakes.length > 0 && (
@@ -202,6 +269,13 @@ const ResultCard = ({ title, value }: { title: string; value: string }) =>  {
   );
 };
 
+const ComparisonCard = ({ title, value }: { title: string; value: string }) => (
+  <div className="rounded-xl bg-neutral-950 p-4">
+    <p className="text-sm text-neutral-500">{title}</p>
+    <p className="mt-1 text-xl font-semibold">{value}</p>
+  </div>
+);
+
 const getCompletionLabel = (result: SessionResult): string => {
   if (result.isCalibration) return 'Calibration Complete';
   if (result.sessionType === 'mistake-practice') return 'Mistake Practice Complete';
@@ -226,8 +300,13 @@ const formatOperation = (operation: string): string => {
   return operation;
 };
 
-const formatSessionConfig = (config: SessionConfig): string => {
-  if (config.kind === 'questions') return `${config.questionCount} questions`;
-  if (config.kind === 'untimed') return 'Untimed';
-  return `${config.durationSeconds}s`;
+const formatSigned = (value: number): string => {
+  if (value > 0) return `+${value}`;
+  return value.toString();
+};
+
+const formatPaceDifference = (value: number | null): string => {
+  if (value === null || value === 0) return 'Same pace';
+  const seconds = (Math.abs(value) / 1000).toFixed(2);
+  return value < 0 ? `${seconds}s faster` : `${seconds}s slower`;
 };

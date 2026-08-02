@@ -7,6 +7,11 @@ import {
 } from '../../types/types';
 import { Button } from '../../components/button';
 import { getWeakAreaCount } from '../../engine/mistakes';
+import {
+  formatSessionConfig,
+  getComparableTrainingSessions,
+  getPersonalBests,
+} from '../../engine/performance';
 
 interface DashboardProps {
   progress: DudeProgress;
@@ -41,6 +46,8 @@ export const Dashboard = ({
   const isModeCalibrated = progress.calibratedModes[selectedMode];
   const selectedModeLabel = getModeLabel(selectedMode);
   const weakAreaCount = getWeakAreaCount(sessions, selectedMode);
+  const comparableSessions = getComparableTrainingSessions(sessions, selectedMode, sessionConfig);
+  const personalBests = getPersonalBests(comparableSessions);
   const confirmReset = () => {
     setIsResetConfirmationOpen(false);
     onResetProgress();
@@ -154,6 +161,47 @@ export const Dashboard = ({
         <StatCard title="Training Sessions" value={trainingSessions.length.toString()} />
         <StatCard title="Avg Accuracy" value={`${averageAccuracy}%`} />
         <StatCard title="Avg Timed Answer" value={`${(averageTime / 1000).toFixed(2)}s`} />
+      </section>
+
+      <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-neutral-500">Current format</p>
+            <h2 className="mt-1 text-xl font-semibold">Personal bests · {formatSessionConfig(sessionConfig)}</h2>
+          </div>
+          {personalBests && (
+            <p className="text-sm text-neutral-500">
+              From {personalBests.sessionCount} comparable {personalBests.sessionCount === 1 ? 'session' : 'sessions'}
+            </p>
+          )}
+        </div>
+
+        {personalBests ? (
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {sessionConfig.kind === 'untimed' ? (
+              <>
+                <RecordCard title="Best Accuracy" value={`${personalBests.bestAccuracy}%`} />
+                <RecordCard title="Most Solved" value={personalBests.mostSolved.toString()} />
+                <RecordCard title="Best Streak" value={personalBests.bestStreak.toString()} />
+              </>
+            ) : (
+              <>
+                <RecordCard title="Highest Score" value={personalBests.bestScore.toString()} />
+                <RecordCard title="Best Accuracy" value={`${personalBests.bestAccuracy}%`} />
+                <RecordCard
+                  title="Fastest Average"
+                  value={personalBests.fastestAverageTimeMs === null
+                    ? '—'
+                    : `${(personalBests.fastestAverageTimeMs / 1000).toFixed(2)}s`}
+                />
+              </>
+            )}
+          </div>
+        ) : (
+          <p className="mt-4 rounded-xl bg-neutral-950 p-4 text-neutral-500">
+            Complete a {formatSessionConfig(sessionConfig).toLowerCase()} {selectedModeLabel.toLowerCase()} session to set your first records.
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
@@ -383,12 +431,6 @@ const getSessionStartLabel = (config: SessionConfig): string => {
   return `Start ${config.durationSeconds}s Session`;
 };
 
-const formatSessionConfig = (config: SessionConfig): string => {
-  if (config.kind === 'questions') return `${config.questionCount} questions`;
-  if (config.kind === 'untimed') return 'Untimed';
-  return `${config.durationSeconds}s`;
-};
-
 const StatCard = ({ title, value }: { title: string; value: string }) => {
   return (
     <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
@@ -397,6 +439,13 @@ const StatCard = ({ title, value }: { title: string; value: string }) => {
     </div>
   );
 }
+
+const RecordCard = ({ title, value }: { title: string; value: string }) => (
+  <div className="rounded-xl bg-neutral-950 p-4">
+    <p className="text-sm text-neutral-500">{title}</p>
+    <p className="mt-1 text-2xl font-bold text-amber-300">{value}</p>
+  </div>
+);
 
 const ModeButton = ({ active, label, description, onClick }: {
   active: boolean;
