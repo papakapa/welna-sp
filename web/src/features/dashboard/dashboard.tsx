@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { type DudeProgress, type SessionResult, TrainingMode } from '../../types/types';
 import { Button } from '../../components/button';
+import { getWeakAreaCount } from '../../engine/mistakes';
 
 interface DashboardProps {
   progress: DudeProgress;
@@ -10,6 +11,7 @@ interface DashboardProps {
   onStart: (mode: TrainingMode) => void;
   onStartCalibration: (mode: TrainingMode) => void;
   onResetProgress: () => void;
+  onStartMistakePractice: (mode: TrainingMode) => void;
 }
 
 export const Dashboard = ({
@@ -19,32 +21,35 @@ export const Dashboard = ({
   onModeChange,
   onStart,
   onStartCalibration,
-  onResetProgress
+  onResetProgress,
+  onStartMistakePractice,
 }: DashboardProps) => {
   const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
   const modeSessions = sessions.filter((session) => session.mode === selectedMode);
+  const trainingSessions = modeSessions.filter((session) => session.sessionType === 'training');
   const latestSessions = modeSessions.slice(0, 5);
   const isModeCalibrated = progress.calibratedModes[selectedMode];
   const selectedModeLabel = getModeLabel(selectedMode);
+  const weakAreaCount = getWeakAreaCount(sessions, selectedMode);
   const confirmReset = () => {
     setIsResetConfirmationOpen(false);
     onResetProgress();
   };
 
   const averageAccuracy =
-    modeSessions.length === 0
+    trainingSessions.length === 0
       ? 0
       : Math.round(
-        modeSessions.reduce((sum, s) => sum + s.accuracy, 0) /
-        modeSessions.length
+        trainingSessions.reduce((sum, s) => sum + s.accuracy, 0) /
+        trainingSessions.length
       );
 
   const averageTime =
-    modeSessions.length === 0
+    trainingSessions.length === 0
       ? 0
       : Math.round(
-        modeSessions.reduce((sum, s) => sum + s.averageAnswerTimeMs, 0) /
-        modeSessions.length
+        trainingSessions.reduce((sum, s) => sum + s.averageAnswerTimeMs, 0) /
+        trainingSessions.length
       );
 
   return (
@@ -112,6 +117,11 @@ export const Dashboard = ({
               Start {selectedModeLabel} Calibration
             </Button>
           )}
+          {weakAreaCount > 0 && (
+            <Button variant="secondary" onClick={() => onStartMistakePractice(selectedMode)}>
+              Practice mistakes · {weakAreaCount} weak {weakAreaCount === 1 ? 'area' : 'areas'}
+            </Button>
+          )}
           <Button variant="danger" onClick={() => setIsResetConfirmationOpen(true)}>Reset Progress</Button>
         </div>
       </section>
@@ -125,7 +135,7 @@ export const Dashboard = ({
       </div>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <StatCard title="Sessions" value={modeSessions.length.toString()} />
+        <StatCard title="Training Sessions" value={trainingSessions.length.toString()} />
         <StatCard title="Avg Accuracy" value={`${averageAccuracy}%`} />
         <StatCard title="Avg Time" value={`${(averageTime / 1000).toFixed(2)}s`} />
       </section>
@@ -187,6 +197,11 @@ const SessionCard = ({ session }: { session: SessionResult }) => {
           {session.isCalibration && (
             <span className="rounded-full bg-amber-950 px-2 py-0.5 text-xs font-medium text-amber-300">
               Calibration
+            </span>
+          )}
+          {session.sessionType === 'mistake-practice' && (
+            <span className="rounded-full bg-sky-950 px-2 py-0.5 text-xs font-medium text-sky-300">
+              Mistake practice
             </span>
           )}
         </div>

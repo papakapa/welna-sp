@@ -1,16 +1,24 @@
-import { TrainingMode, type SessionResult, type DudeProgress } from '../types/types';
+import {
+  TrainingMode,
+  type DudeAttempt,
+  type DudeProgress,
+  type Example,
+  type Operation,
+  type SessionResult,
+  type SessionType,
+} from '../types/types';
 import { clampLevel } from '../engine/level';
 
 export const STORAGE_KEY = "mental-math-progress-v1";
 
 export interface StoredState {
-  version: 2;
+  version: 3;
   progress: DudeProgress;
   sessions: SessionResult[];
 }
 
 export const defaultState: StoredState = {
-  version: 2,
+  version: 3,
   progress: {
     additionLevel: 1,
     multiplicationLevel: 1,
@@ -44,12 +52,14 @@ const migrateState = (value: unknown): StoredState => {
 
   const legacy = value as {
     progress?: Partial<DudeProgress> & { hasCompletedCalibration?: boolean };
-    sessions?: SessionResult[];
+    sessions?: unknown[];
   };
   const sessions = Array.isArray(legacy.sessions)
     ? legacy.sessions.filter(isSessionResult).slice(0, 50).map((session) => ({
       ...session,
-      isCalibration: session.isCalibration === true,
+      sessionType: normalizeSessionType(session),
+      isCalibration: normalizeSessionType(session) === 'calibration',
+      attempts: normalizeAttempts(session.attempts),
     }))
     : [];
   const storedCalibratedModes = legacy.progress?.calibratedModes;
@@ -59,7 +69,7 @@ const migrateState = (value: unknown): StoredState => {
   );
 
   return {
-    version: 2,
+    version: 3,
     progress: {
       additionLevel: normalizeLevel(legacy.progress?.additionLevel),
       multiplicationLevel: normalizeLevel(legacy.progress?.multiplicationLevel),
@@ -72,6 +82,44 @@ const migrateState = (value: unknown): StoredState => {
     },
     sessions,
   };
+};
+
+const normalizeSessionType = (session: Partial<SessionResult>): SessionType => {
+  if (isSessionType(session.sessionType)) return session.sessionType;
+  return session.isCalibration === true ? 'calibration' : 'training';
+};
+
+const normalizeAttempts = (value: unknown): DudeAttempt[] => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isAttempt).slice(0, 120);
+};
+
+const isAttempt = (value: unknown): value is DudeAttempt => {
+  if (!value || typeof value !== 'object') return false;
+  const attempt = value as Partial<DudeAttempt>;
+  return isExample(attempt.example)
+    && (typeof attempt.userAnswer === 'number' || attempt.userAnswer === null)
+    && typeof attempt.isCorrect === 'boolean'
+    && typeof attempt.timeMs === 'number'
+    && Number.isFinite(attempt.timeMs)
+    && typeof attempt.answeredAt === 'number'
+    && Number.isFinite(attempt.answeredAt);
+};
+
+const isExample = (value: unknown): value is Example => {
+  if (!value || typeof value !== 'object') return false;
+  const example = value as Partial<Example>;
+  return typeof example.id === 'string'
+    && typeof example.left === 'number'
+    && typeof example.right === 'number'
+    && isOperation(example.operation)
+    && typeof example.answer === 'number'
+    && typeof example.level === 'number'
+    && isTrainingMode(example.mode);
+};
+
+const isOperation = (value: unknown): value is Operation => {
+  return value === '+' || value === '-' || value === '*' || value === '/';
 };
 
 const normalizeLevel = (value: unknown): number => {
@@ -109,6 +157,10 @@ const isSessionResult = (value: unknown): value is SessionResult => {
 
 const isTrainingMode = (value: unknown): value is TrainingMode => {
   return typeof value === 'string' && Object.values<string>(TrainingMode).includes(value);
+};
+
+const isSessionType = (value: unknown): value is SessionType => {
+  return value === 'training' || value === 'calibration' || value === 'mistake-practice';
 };
 
 const getLegacyCalibratedModes = (

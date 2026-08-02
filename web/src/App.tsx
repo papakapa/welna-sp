@@ -1,9 +1,10 @@
 import { useMemo, useState, useCallback } from 'react';
-import { type SessionResult, TrainingMode } from './types/types';
+import { type Example, type SessionResult, TrainingMode } from './types/types';
 import { Dashboard } from './features/dashboard/dashboard';
 import { Session } from './features/session/session';
 import { Results } from './features/results/results';
 import { loadState, type StoredState, saveState, defaultState } from './lib/storage';
+import { buildMistakePracticeQueue } from './engine/mistakes';
 
 export type Screen = "dashboard" | "training" | "results";
 
@@ -13,6 +14,7 @@ export const App = () => {
   const [selectedMode, setSelectedMode] = useState<TrainingMode>(TrainingMode.ADDITION);
   const [latestResult, setLatestResult] = useState<SessionResult | null>(null);
   const [isCalibration, setIsCalibration] = useState(false);
+  const [practiceExamples, setPracticeExamples] = useState<Example[]>([]);
 
   const currentLevel = useMemo(() => {
     if (selectedMode === TrainingMode.ADDITION) return storedState.progress.additionLevel;
@@ -23,33 +25,45 @@ export const App = () => {
   const startTraining = useCallback((mode: TrainingMode) => {
     setSelectedMode(mode);
     setIsCalibration(false);
+    setPracticeExamples([]);
     setScreen("training");
   }, [setSelectedMode, setIsCalibration, setScreen]);
 
   const startCalibration = useCallback((mode: TrainingMode) => {
     setSelectedMode(mode);
     setIsCalibration(true);
+    setPracticeExamples([]);
     setScreen("training");
   }, [setSelectedMode, setIsCalibration, setScreen]);
 
+  const startMistakePractice = useCallback((mode: TrainingMode) => {
+    const queue = buildMistakePracticeQueue(storedState.sessions, mode);
+    if (queue.length === 0) return;
+
+    setSelectedMode(mode);
+    setIsCalibration(false);
+    setPracticeExamples(queue);
+    setScreen("training");
+  }, [storedState.sessions]);
+
   const handleFinish = useCallback((result: SessionResult) => {
     const nextState: StoredState = {
-      version: 2,
+      version: 3,
       progress: {
         ...storedState.progress,
         calibratedModes: result.isCalibration
           ? { ...storedState.progress.calibratedModes, [result.mode]: true }
           : storedState.progress.calibratedModes,
         additionLevel:
-          result.mode === TrainingMode.ADDITION
+          result.sessionType !== 'mistake-practice' && result.mode === TrainingMode.ADDITION
             ? result.levelAfter
             : storedState.progress.additionLevel,
         multiplicationLevel:
-          result.mode === TrainingMode.MULTIPLICATION
+          result.sessionType !== 'mistake-practice' && result.mode === TrainingMode.MULTIPLICATION
             ? result.levelAfter
             : storedState.progress.multiplicationLevel,
         mixLevel:
-          result.mode === TrainingMode.MIX
+          result.sessionType !== 'mistake-practice' && result.mode === TrainingMode.MIX
             ? result.levelAfter
             : storedState.progress.mixLevel,
       },
@@ -81,6 +95,7 @@ export const App = () => {
             onStart={startTraining}
             onStartCalibration={startCalibration}
             onResetProgress={resetProgress}
+            onStartMistakePractice={startMistakePractice}
           />
         )}
 
@@ -91,14 +106,18 @@ export const App = () => {
             isCalibration={isCalibration}
             onFinish={handleFinish}
             onCancel={() => setScreen("dashboard")}
+            practiceExamples={practiceExamples}
           />
         )}
 
         {screen === "results" && latestResult && (
           <Results
             result={latestResult}
-            onStartAgain={() => startTraining(latestResult.mode)}
+            onStartAgain={() => latestResult.sessionType === 'mistake-practice'
+              ? startMistakePractice(latestResult.mode)
+              : startTraining(latestResult.mode)}
             onBackHome={() => setScreen("dashboard")}
+            onPracticeMistakes={() => startMistakePractice(latestResult.mode)}
           />
         )}
       </div>

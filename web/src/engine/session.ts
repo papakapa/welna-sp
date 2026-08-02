@@ -4,6 +4,7 @@ import type {
   SessionResult,
   SessionState,
   TrainingMode,
+  SessionType,
 } from "../types/types";
 import { createId } from "./random";
 import { generateExample } from "./examples";
@@ -14,6 +15,7 @@ export const createSession = (input: {
   mode: TrainingMode;
   level: number;
   durationSeconds?: number;
+  sessionType?: SessionType;
 }): SessionState => {
   return {
     id: createId("session"),
@@ -24,6 +26,7 @@ export const createSession = (input: {
     currentLevel: input.level,
     examples: [],
     attempts: [],
+    sessionType: input.sessionType ?? 'training',
   };
 }
 
@@ -70,7 +73,9 @@ export const submitAnswer = (
 }
 
 export const finishSession = (session: SessionState): SessionResult => {
-  const levelAfter = calculateNextLevel(session);
+  const levelAfter = session.sessionType === 'mistake-practice'
+    ? session.levelBefore
+    : calculateNextLevel(session);
 
   return buildSessionResult(session, levelAfter);
 }

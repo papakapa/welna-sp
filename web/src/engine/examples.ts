@@ -28,8 +28,39 @@ export const generateExample = (params: GenerateExampleParams): Example => {
     : generateMultiplicationExample(level, params.mode);
 }
 
-const generateAdditionExample = (level: number, mode: TrainingMode): Example => {
-  const operation = randomItem<Operation>(["+", "-"]);
+export const generateRelatedExample = (source: Example): Example => {
+  if (source.operation === '+' || source.operation === '-') {
+    return generateAdditionExample(source.level, source.mode, source.operation);
+  }
+
+  if (source.operation === '*') {
+    const numbers = generateMultiplicationNumbers(source.level);
+    return createExample({
+      left: numbers.left,
+      right: source.right,
+      operation: source.operation,
+      level: source.level,
+      mode: source.mode,
+    });
+  }
+
+  const numbers = generateDivisionNumbers(source.level);
+  const answer = numbers.left / numbers.right;
+  return createExample({
+    left: answer * source.right,
+    right: source.right,
+    operation: source.operation,
+    level: source.level,
+    mode: source.mode,
+  });
+};
+
+const generateAdditionExample = (
+  level: number,
+  mode: TrainingMode,
+  forcedOperation?: '+' | '-',
+): Example => {
+  const operation = forcedOperation ?? randomItem<Operation>(["+", "-"]);
 
   if (operation === "+") {
     return createExample({
@@ -50,8 +81,12 @@ const generateAdditionExample = (level: number, mode: TrainingMode): Example => 
   });
 }
 
-const generateMultiplicationExample = (level: number, mode: TrainingMode): Example => {
-  const operation = randomItem<Operation>(["*", "/"]);
+const generateMultiplicationExample = (
+  level: number,
+  mode: TrainingMode,
+  forcedOperation?: '*' | '/',
+): Example => {
+  const operation = forcedOperation ?? randomItem<Operation>(["*", "/"]);
 
   if (operation === "*") {
     return createExample({

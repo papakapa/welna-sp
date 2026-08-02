@@ -37,6 +37,7 @@ export const createInitialSession = (input: {
     attempts: [],
     isCalibration: true,
     calibration,
+    sessionType: 'calibration',
   };
 }
 

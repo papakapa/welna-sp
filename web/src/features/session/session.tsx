@@ -22,13 +22,26 @@ interface SessionProps {
   isCalibration: boolean;
   onFinish: (result: SessionResult) => void;
   onCancel: () => void;
+  practiceExamples?: Example[];
 }
 
-export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: SessionProps) => {
+const EMPTY_PRACTICE_EXAMPLES: Example[] = [];
+
+export const Session = ({
+  mode,
+  level,
+  isCalibration,
+  onFinish,
+  onCancel,
+  practiceExamples,
+}: SessionProps) => {
+  const practiceQueue = practiceExamples ?? EMPTY_PRACTICE_EXAMPLES;
+  const isMistakePractice = practiceQueue.length > 0;
   const [timeLeft, setTimeLeft] = useState(60);
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
+  const [isPracticeComplete, setIsPracticeComplete] = useState(false);
 
   const [normalSession, setNormalSession] = useState<SessionState | null>(() =>
     isCalibration
@@ -36,7 +49,8 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
       : createSession({
         mode,
         level,
-        durationSeconds: 60,
+        durationSeconds: isMistakePractice ? 0 : 60,
+        sessionType: isMistakePractice ? 'mistake-practice' : 'training',
       })
   );
 
@@ -93,13 +107,16 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
     setNormalSession((session) => {
       if (!session) return session;
 
-      const example = getNextExample(session);
+      const example = isMistakePractice
+        ? practiceQueue[session.attempts.length]
+        : getNextExample(session);
+      if (!example) return session;
       setCurrentExample(example);
       questionStartedAtRef.current = Date.now();
 
       return addExampleToSession(session, example);
     });
-  }, [isCalibration]);
+  }, [isCalibration, isMistakePractice, practiceQueue]);
 
   const finish = useEffectEvent(() => {
     if (isCalibration && initialSession) {
@@ -125,6 +142,8 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
   }, [currentExample, feedback]);
 
   useEffect(() => {
+    if (isMistakePractice) return;
+
     if (timeLeft <= 0) {
       finish();
       return;
@@ -135,7 +154,11 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [timeLeft]);
+  }, [isMistakePractice, timeLeft]);
+
+  useEffect(() => {
+    if (isPracticeComplete) finish();
+  }, [isPracticeComplete]);
 
   const handleSubmit = useCallback((event: React.FormEvent) => {
     event.preventDefault();
@@ -143,6 +166,8 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
     if (!currentExample || answer.trim() === "" || feedback) return;
 
     const isCorrect = Number(answer.trim()) === currentExample.answer;
+    const completesPractice = isMistakePractice
+      && attempts.length + 1 >= practiceQueue.length;
 
     setFeedback(isCorrect ? "correct" : "wrong");
     setCorrectAnswer(currentExample.answer);
@@ -176,9 +201,13 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
     transitionTimerRef.current = window.setTimeout(() => {
       setFeedback(null);
       setCorrectAnswer(null);
-      generateNext();
+      if (completesPractice) {
+        setIsPracticeComplete(true);
+      } else {
+        generateNext();
+      }
     }, isCorrect ? 300 : 1400);
-  }, [answer, currentExample, feedback, generateNext, isCalibration]);
+  }, [answer, attempts.length, currentExample, feedback, generateNext, isCalibration, isMistakePractice, practiceQueue.length]);
 
   useEffect(() => {
     return () => {
@@ -193,9 +222,12 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
       <header className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">
-            {isCalibration ? "Calibration" : "Training"}
+            {isCalibration ? "Calibration" : isMistakePractice ? "Mistake Practice" : "Training"}
           </p>
           <h1 className="mt-2 text-3xl font-bold capitalize">{mode}</h1>
+          {isMistakePractice && (
+            <p className="mt-2 text-sm text-neutral-500">Focused practice does not change your level.</p>
+          )}
         </div>
 
         <button
@@ -207,7 +239,10 @@ export const Session = ({ mode, level, isCalibration, onFinish, onCancel }: Sess
       </header>
 
       <section className="grid gap-3 sm:grid-cols-4">
-        <StatusCard title="Time" value={`${timeLeft}s`} />
+        <StatusCard
+          title={isMistakePractice ? "Remaining" : "Time"}
+          value={isMistakePractice ? Math.max(0, practiceQueue.length - attempts.length).toString() : `${timeLeft}s`}
+        />
         <StatusCard title="Level" value={currentLevel.toString()} />
         <StatusCard title="Solved" value={attempts.length.toString()} />
         <StatusCard title="Streak" value={currentStreak.toString()} />

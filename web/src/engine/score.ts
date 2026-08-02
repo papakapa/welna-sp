@@ -47,6 +47,8 @@ export const buildSessionResult = (
     bestStreak,
     score,
     isCalibration,
+    sessionType: session.sessionType,
+    attempts: session.attempts.slice(-120),
   };
 }
 
