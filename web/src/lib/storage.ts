@@ -5,6 +5,7 @@ import {
   type Example,
   type Operation,
   type SessionResult,
+  type SessionConfig,
   type SessionType,
 } from '../types/types';
 import { clampLevel } from '../engine/level';
@@ -12,13 +13,14 @@ import { clampLevel } from '../engine/level';
 export const STORAGE_KEY = "mental-math-progress-v1";
 
 export interface StoredState {
-  version: 3;
+  version: 4;
   progress: DudeProgress;
   sessions: SessionResult[];
+  sessionConfig: SessionConfig;
 }
 
 export const defaultState: StoredState = {
-  version: 3,
+  version: 4,
   progress: {
     additionLevel: 1,
     multiplicationLevel: 1,
@@ -30,6 +32,7 @@ export const defaultState: StoredState = {
     },
   },
   sessions: [],
+  sessionConfig: { kind: 'timed', durationSeconds: 60 },
 };
 
 export const loadState = (): StoredState => {
@@ -53,6 +56,7 @@ const migrateState = (value: unknown): StoredState => {
   const legacy = value as {
     progress?: Partial<DudeProgress> & { hasCompletedCalibration?: boolean };
     sessions?: unknown[];
+    sessionConfig?: unknown;
   };
   const sessions = Array.isArray(legacy.sessions)
     ? legacy.sessions.filter(isSessionResult).slice(0, 50).map((session) => ({
@@ -60,6 +64,7 @@ const migrateState = (value: unknown): StoredState => {
       sessionType: normalizeSessionType(session),
       isCalibration: normalizeSessionType(session) === 'calibration',
       attempts: normalizeAttempts(session.attempts),
+      config: normalizeResultConfig(session),
     }))
     : [];
   const storedCalibratedModes = legacy.progress?.calibratedModes;
@@ -69,7 +74,7 @@ const migrateState = (value: unknown): StoredState => {
   );
 
   return {
-    version: 3,
+    version: 4,
     progress: {
       additionLevel: normalizeLevel(legacy.progress?.additionLevel),
       multiplicationLevel: normalizeLevel(legacy.progress?.multiplicationLevel),
@@ -81,7 +86,43 @@ const migrateState = (value: unknown): StoredState => {
       },
     },
     sessions,
+    sessionConfig: normalizeSessionConfig(legacy.sessionConfig),
   };
+};
+
+const normalizeResultConfig = (session: Partial<SessionResult>): SessionConfig => {
+  if (isSessionConfig(session.config)) return normalizeSessionConfig(session.config);
+  if (session.sessionType === 'mistake-practice') {
+    return { kind: 'questions', questionCount: Math.max(1, session.totalExamples ?? 10) };
+  }
+  return { kind: 'timed', durationSeconds: normalizeDuration(session.durationSeconds) };
+};
+
+const normalizeSessionConfig = (value: unknown): SessionConfig => {
+  if (!value || typeof value !== 'object') return { kind: 'timed', durationSeconds: 60 };
+  const config = value as Partial<SessionConfig> & { durationSeconds?: number; questionCount?: number };
+
+  if (config.kind === 'questions') {
+    return { kind: 'questions', questionCount: normalizeQuestionCount(config.questionCount) };
+  }
+  if (config.kind === 'untimed') return { kind: 'untimed' };
+  return { kind: 'timed', durationSeconds: normalizeDuration(config.durationSeconds) };
+};
+
+const normalizeDuration = (value: unknown): number => {
+  return value === 30 || value === 120 ? value : 60;
+};
+
+const normalizeQuestionCount = (value: unknown): number => {
+  return value === 20 || value === 30 ? value : 10;
+};
+
+const isSessionConfig = (value: unknown): value is SessionConfig => {
+  if (!value || typeof value !== 'object') return false;
+  const config = value as Partial<SessionConfig> & { durationSeconds?: unknown; questionCount?: unknown };
+  return config.kind === 'untimed'
+    || (config.kind === 'timed' && typeof config.durationSeconds === 'number')
+    || (config.kind === 'questions' && typeof config.questionCount === 'number');
 };
 
 const normalizeSessionType = (session: Partial<SessionResult>): SessionType => {

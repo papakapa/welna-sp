@@ -6,6 +6,10 @@ export const TrainingMode = {
 
 export type TrainingMode = typeof TrainingMode[keyof typeof TrainingMode];
 export type SessionType = 'training' | 'calibration' | 'mistake-practice';
+export type SessionConfig =
+  | { kind: 'timed'; durationSeconds: number }
+  | { kind: 'questions'; questionCount: number }
+  | { kind: 'untimed' };
 
 export interface DudeProgress {
   additionLevel: number;
@@ -44,6 +48,7 @@ export interface SessionState {
   examples: Example[];
   attempts: DudeAttempt[];
   sessionType: SessionType;
+  config: SessionConfig;
 }
 
 export interface SessionResult {
@@ -69,6 +74,7 @@ export interface SessionResult {
   isCalibration: boolean;
   sessionType: SessionType;
   attempts: DudeAttempt[];
+  config: SessionConfig;
 }
 
 export interface DifficultyLevel {

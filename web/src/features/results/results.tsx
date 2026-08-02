@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import type { DudeAttempt, SessionResult } from "../../types/types";
+import type { DudeAttempt, SessionConfig, SessionResult } from "../../types/types";
 import { Button } from '../../components/button';
 
 interface ResultsProps {
@@ -64,7 +64,7 @@ export const Results = ({
         <p className="mt-2 text-6xl font-bold">{result.score}</p>
 
         <p className="mt-4 text-neutral-400 capitalize">
-          {result.mode} · Level {result.levelBefore} → {result.levelAfter}
+          {result.mode} · {formatSessionConfig(result.config)} · Level {result.levelBefore} → {result.levelAfter}
         </p>
       </section>
 
@@ -224,4 +224,10 @@ const formatOperation = (operation: string): string => {
   if (operation === '*') return '×';
   if (operation === '/') return '÷';
   return operation;
+};
+
+const formatSessionConfig = (config: SessionConfig): string => {
+  if (config.kind === 'questions') return `${config.questionCount} questions`;
+  if (config.kind === 'untimed') return 'Untimed';
+  return `${config.durationSeconds}s`;
 };

@@ -28,6 +28,7 @@ export const buildSessionResult = (
     accuracy,
     averageAnswerTimeMs,
     averageLevel: getAverageLevel(session.attempts, session.levelBefore),
+    includeSpeed: session.config.kind !== 'untimed',
   });
 
   return {
@@ -49,6 +50,7 @@ export const buildSessionResult = (
     isCalibration,
     sessionType: session.sessionType,
     attempts: session.attempts.slice(-120),
+    config: session.config,
   };
 }
 
@@ -73,12 +75,15 @@ const calculateScore = (input: {
   accuracy: number;
   averageAnswerTimeMs: number;
   averageLevel: number;
+  includeSpeed: boolean;
 }): number => {
   if (input.correctAnswers === 0) return 0;
 
   const avgSeconds = input.averageAnswerTimeMs / 1000;
   const accuracyMultiplier = input.accuracy / 100;
-  const speedMultiplier = Math.max(0.5, 3 / Math.max(avgSeconds, 0.5));
+  const speedMultiplier = input.includeSpeed
+    ? Math.max(0.5, 3 / Math.max(avgSeconds, 0.5))
+    : 1;
   const difficultyMultiplier = 0.75 + input.averageLevel * 0.25;
 
   return Math.round(

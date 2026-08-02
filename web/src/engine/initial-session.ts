@@ -38,6 +38,7 @@ export const createInitialSession = (input: {
     isCalibration: true,
     calibration,
     sessionType: 'calibration',
+    config: { kind: 'timed', durationSeconds: input.durationSeconds ?? 60 },
   };
 }
 

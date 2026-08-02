@@ -5,6 +5,7 @@ import type {
   SessionState,
   TrainingMode,
   SessionType,
+  SessionConfig,
 } from "../types/types";
 import { createId } from "./random";
 import { generateExample } from "./examples";
@@ -16,17 +17,24 @@ export const createSession = (input: {
   level: number;
   durationSeconds?: number;
   sessionType?: SessionType;
+  config?: SessionConfig;
 }): SessionState => {
+  const config = input.config ?? {
+    kind: 'timed' as const,
+    durationSeconds: input.durationSeconds ?? 60,
+  };
+
   return {
     id: createId("session"),
     mode: input.mode,
     startedAt: Date.now(),
-    durationSeconds: input.durationSeconds ?? 60,
+    durationSeconds: config.kind === 'timed' ? config.durationSeconds : 0,
     levelBefore: input.level,
     currentLevel: input.level,
     examples: [],
     attempts: [],
     sessionType: input.sessionType ?? 'training',
+    config,
   };
 }
 
@@ -73,7 +81,7 @@ export const submitAnswer = (
 }
 
 export const finishSession = (session: SessionState): SessionResult => {
-  const levelAfter = session.sessionType === 'mistake-practice'
+  const levelAfter = session.sessionType === 'mistake-practice' || session.config.kind === 'untimed'
     ? session.levelBefore
     : calculateNextLevel(session);
 

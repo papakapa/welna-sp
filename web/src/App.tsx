@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from 'react';
-import { type Example, type SessionResult, TrainingMode } from './types/types';
+import { type Example, type SessionConfig, type SessionResult, TrainingMode } from './types/types';
 import { Dashboard } from './features/dashboard/dashboard';
 import { Session } from './features/session/session';
 import { Results } from './features/results/results';
@@ -46,9 +46,17 @@ export const App = () => {
     setScreen("training");
   }, [storedState.sessions]);
 
+  const updateSessionConfig = useCallback((sessionConfig: SessionConfig) => {
+    setStoredState((state) => {
+      const nextState = { ...state, sessionConfig };
+      saveState(nextState);
+      return nextState;
+    });
+  }, []);
+
   const handleFinish = useCallback((result: SessionResult) => {
     const nextState: StoredState = {
-      version: 3,
+      version: 4,
       progress: {
         ...storedState.progress,
         calibratedModes: result.isCalibration
@@ -68,6 +76,7 @@ export const App = () => {
             : storedState.progress.mixLevel,
       },
       sessions: [result, ...storedState.sessions].slice(0, 50),
+      sessionConfig: storedState.sessionConfig,
     };
 
     setStoredState(nextState);
@@ -96,6 +105,8 @@ export const App = () => {
             onStartCalibration={startCalibration}
             onResetProgress={resetProgress}
             onStartMistakePractice={startMistakePractice}
+            sessionConfig={storedState.sessionConfig}
+            onSessionConfigChange={updateSessionConfig}
           />
         )}
 
@@ -107,6 +118,7 @@ export const App = () => {
             onFinish={handleFinish}
             onCancel={() => setScreen("dashboard")}
             practiceExamples={practiceExamples}
+            config={storedState.sessionConfig}
           />
         )}
 

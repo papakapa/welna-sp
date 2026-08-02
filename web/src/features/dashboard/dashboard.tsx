@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import { type DudeProgress, type SessionResult, TrainingMode } from '../../types/types';
+import {
+  type DudeProgress,
+  type SessionConfig,
+  type SessionResult,
+  TrainingMode,
+} from '../../types/types';
 import { Button } from '../../components/button';
 import { getWeakAreaCount } from '../../engine/mistakes';
 
@@ -12,6 +17,8 @@ interface DashboardProps {
   onStartCalibration: (mode: TrainingMode) => void;
   onResetProgress: () => void;
   onStartMistakePractice: (mode: TrainingMode) => void;
+  sessionConfig: SessionConfig;
+  onSessionConfigChange: (config: SessionConfig) => void;
 }
 
 export const Dashboard = ({
@@ -23,10 +30,13 @@ export const Dashboard = ({
   onStartCalibration,
   onResetProgress,
   onStartMistakePractice,
+  sessionConfig,
+  onSessionConfigChange,
 }: DashboardProps) => {
   const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
   const modeSessions = sessions.filter((session) => session.mode === selectedMode);
   const trainingSessions = modeSessions.filter((session) => session.sessionType === 'training');
+  const speedSessions = trainingSessions.filter((session) => session.config.kind !== 'untimed');
   const latestSessions = modeSessions.slice(0, 5);
   const isModeCalibrated = progress.calibratedModes[selectedMode];
   const selectedModeLabel = getModeLabel(selectedMode);
@@ -45,11 +55,11 @@ export const Dashboard = ({
       );
 
   const averageTime =
-    trainingSessions.length === 0
+    speedSessions.length === 0
       ? 0
       : Math.round(
-        trainingSessions.reduce((sum, s) => sum + s.averageAnswerTimeMs, 0) /
-        trainingSessions.length
+        speedSessions.reduce((sum, s) => sum + s.averageAnswerTimeMs, 0) /
+        speedSessions.length
       );
 
   return (
@@ -106,10 +116,16 @@ export const Dashboard = ({
           </div>
         )}
 
+        {isModeCalibrated && (
+          <SessionSetup config={sessionConfig} onChange={onSessionConfigChange} />
+        )}
+
         <div className="mt-5 flex flex-wrap gap-3">
           {isModeCalibrated ? (
             <>
-              <Button variant="primary" onClick={() => onStart(selectedMode)}>Start 60s Session</Button>
+              <Button variant="primary" onClick={() => onStart(selectedMode)}>
+                {getSessionStartLabel(sessionConfig)}
+              </Button>
               <Button variant="secondary" onClick={() => onStartCalibration(selectedMode)}>Recalibrate</Button>
             </>
           ) : (
@@ -137,7 +153,7 @@ export const Dashboard = ({
       <section className="grid gap-3 sm:grid-cols-3">
         <StatCard title="Training Sessions" value={trainingSessions.length.toString()} />
         <StatCard title="Avg Accuracy" value={`${averageAccuracy}%`} />
-        <StatCard title="Avg Time" value={`${(averageTime / 1000).toFixed(2)}s`} />
+        <StatCard title="Avg Timed Answer" value={`${(averageTime / 1000).toFixed(2)}s`} />
       </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
@@ -212,6 +228,7 @@ const SessionCard = ({ session }: { session: SessionResult }) => {
           Level {session.levelBefore} → {session.levelAfter}
         </p>
         <p className="mt-1 text-xs text-neutral-600">
+          {formatSessionConfig(session.config)} ·{' '}
           {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(session.startedAt)}
         </p>
       </div>
@@ -231,6 +248,145 @@ const getModeLabel = (mode: TrainingMode): string => {
   if (mode === TrainingMode.ADDITION) return 'Addition';
   if (mode === TrainingMode.MULTIPLICATION) return 'Multiplication';
   return 'Mixed';
+};
+
+const SessionSetup = ({
+  config,
+  onChange,
+}: {
+  config: SessionConfig;
+  onChange: (config: SessionConfig) => void;
+}) => {
+  return (
+    <div className="mt-5 rounded-xl border border-neutral-800 bg-neutral-950 p-4">
+      <div>
+        <p className="font-semibold">Session setup</p>
+        <p className="mt-1 text-sm text-neutral-500">Your selection is remembered on this device.</p>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <SetupOption
+          active={config.kind === 'timed'}
+          label="Timed"
+          description="Race the clock"
+          onClick={() => onChange({ kind: 'timed', durationSeconds: 60 })}
+        />
+        <SetupOption
+          active={config.kind === 'questions'}
+          label="Questions"
+          description="Fixed finish line"
+          onClick={() => onChange({ kind: 'questions', questionCount: 10 })}
+        />
+        <SetupOption
+          active={config.kind === 'untimed'}
+          label="Untimed"
+          description="Practise calmly"
+          onClick={() => onChange({ kind: 'untimed' })}
+        />
+      </div>
+
+      {config.kind === 'timed' && (
+        <SetupValues
+          label="Duration"
+          values={[30, 60, 120]}
+          selected={config.durationSeconds}
+          formatValue={(value) => `${value}s`}
+          onSelect={(durationSeconds) => onChange({ kind: 'timed', durationSeconds })}
+        />
+      )}
+
+      {config.kind === 'questions' && (
+        <SetupValues
+          label="Question target"
+          values={[10, 20, 30]}
+          selected={config.questionCount}
+          formatValue={(value) => value.toString()}
+          onSelect={(questionCount) => onChange({ kind: 'questions', questionCount })}
+        />
+      )}
+
+      {config.kind === 'untimed' && (
+        <p className="mt-4 text-sm text-neutral-400">
+          Solve at your own pace, then use “Finish Session” when you are done. Untimed sessions do not change your level.
+        </p>
+      )}
+    </div>
+  );
+};
+
+const SetupOption = ({
+  active,
+  label,
+  description,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  description: string;
+  onClick: () => void;
+}) => (
+  <button
+    className={[
+      'rounded-lg border px-3 py-3 text-left transition',
+      active
+        ? 'border-white bg-neutral-100 text-neutral-950'
+        : 'cursor-pointer border-neutral-800 text-neutral-200 hover:border-neutral-600',
+    ].join(' ')}
+    type="button"
+    aria-pressed={active}
+    onClick={onClick}
+  >
+    <span className="block font-semibold">{label}</span>
+    <span className={active ? 'text-sm text-neutral-600' : 'text-sm text-neutral-500'}>{description}</span>
+  </button>
+);
+
+const SetupValues = ({
+  label,
+  values,
+  selected,
+  formatValue,
+  onSelect,
+}: {
+  label: string;
+  values: number[];
+  selected: number;
+  formatValue: (value: number) => string;
+  onSelect: (value: number) => void;
+}) => (
+  <div className="mt-4">
+    <p className="text-sm text-neutral-500">{label}</p>
+    <div className="mt-2 flex flex-wrap gap-2">
+      {values.map((value) => (
+        <button
+          className={[
+            'min-w-16 rounded-lg border px-3 py-2 text-sm font-semibold transition',
+            selected === value
+              ? 'border-white bg-white text-neutral-950'
+              : 'cursor-pointer border-neutral-700 text-neutral-300 hover:border-neutral-500',
+          ].join(' ')}
+          type="button"
+          aria-pressed={selected === value}
+          onClick={() => onSelect(value)}
+          key={value}
+        >
+          {formatValue(value)}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+const getSessionStartLabel = (config: SessionConfig): string => {
+  if (config.kind === 'questions') return `Start ${config.questionCount} Questions`;
+  if (config.kind === 'untimed') return 'Start Untimed Practice';
+  return `Start ${config.durationSeconds}s Session`;
+};
+
+const formatSessionConfig = (config: SessionConfig): string => {
+  if (config.kind === 'questions') return `${config.questionCount} questions`;
+  if (config.kind === 'untimed') return 'Untimed';
+  return `${config.durationSeconds}s`;
 };
 
 const StatCard = ({ title, value }: { title: string; value: string }) => {

@@ -1,5 +1,11 @@
 import { useEffect, useEffectEvent, useMemo, useRef, useState, useCallback } from 'react';
-import type { SessionResult, TrainingMode, SessionState, Example } from '../../types/types';
+import type {
+  Example,
+  SessionConfig,
+  SessionResult,
+  SessionState,
+  TrainingMode,
+} from '../../types/types';
 import {
   createSession,
   getNextExample,
@@ -23,6 +29,7 @@ interface SessionProps {
   onFinish: (result: SessionResult) => void;
   onCancel: () => void;
   practiceExamples?: Example[];
+  config: SessionConfig;
 }
 
 const EMPTY_PRACTICE_EXAMPLES: Example[] = [];
@@ -34,14 +41,23 @@ export const Session = ({
   onFinish,
   onCancel,
   practiceExamples,
+  config,
 }: SessionProps) => {
   const practiceQueue = practiceExamples ?? EMPTY_PRACTICE_EXAMPLES;
   const isMistakePractice = practiceQueue.length > 0;
-  const [timeLeft, setTimeLeft] = useState(60);
+  const activeConfig: SessionConfig = isCalibration
+    ? { kind: 'timed', durationSeconds: 60 }
+    : isMistakePractice
+      ? { kind: 'questions', questionCount: practiceQueue.length }
+      : config;
+  const questionTarget = activeConfig.kind === 'questions' ? activeConfig.questionCount : null;
+  const [timeLeft, setTimeLeft] = useState(
+    activeConfig.kind === 'timed' ? activeConfig.durationSeconds : 0,
+  );
   const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<"correct" | "wrong" | null>(null);
   const [correctAnswer, setCorrectAnswer] = useState<number | null>(null);
-  const [isPracticeComplete, setIsPracticeComplete] = useState(false);
+  const [isSessionComplete, setIsSessionComplete] = useState(false);
 
   const [normalSession, setNormalSession] = useState<SessionState | null>(() =>
     isCalibration
@@ -49,8 +65,8 @@ export const Session = ({
       : createSession({
         mode,
         level,
-        durationSeconds: isMistakePractice ? 0 : 60,
         sessionType: isMistakePractice ? 'mistake-practice' : 'training',
+        config: activeConfig,
       })
   );
 
@@ -142,7 +158,7 @@ export const Session = ({
   }, [currentExample, feedback]);
 
   useEffect(() => {
-    if (isMistakePractice) return;
+    if (activeConfig.kind !== 'timed') return;
 
     if (timeLeft <= 0) {
       finish();
@@ -154,11 +170,11 @@ export const Session = ({
     }, 1000);
 
     return () => window.clearTimeout(timer);
-  }, [isMistakePractice, timeLeft]);
+  }, [activeConfig.kind, timeLeft]);
 
   useEffect(() => {
-    if (isPracticeComplete) finish();
-  }, [isPracticeComplete]);
+    if (isSessionComplete) finish();
+  }, [isSessionComplete]);
 
   const handleSubmit = useCallback((event: React.FormEvent) => {
     event.preventDefault();
@@ -166,8 +182,8 @@ export const Session = ({
     if (!currentExample || answer.trim() === "" || feedback) return;
 
     const isCorrect = Number(answer.trim()) === currentExample.answer;
-    const completesPractice = isMistakePractice
-      && attempts.length + 1 >= practiceQueue.length;
+    const completesQuestionSession = questionTarget !== null
+      && attempts.length + 1 >= questionTarget;
 
     setFeedback(isCorrect ? "correct" : "wrong");
     setCorrectAnswer(currentExample.answer);
@@ -201,13 +217,13 @@ export const Session = ({
     transitionTimerRef.current = window.setTimeout(() => {
       setFeedback(null);
       setCorrectAnswer(null);
-      if (completesPractice) {
-        setIsPracticeComplete(true);
+      if (completesQuestionSession) {
+        setIsSessionComplete(true);
       } else {
         generateNext();
       }
     }, isCorrect ? 300 : 1400);
-  }, [answer, attempts.length, currentExample, feedback, generateNext, isCalibration, isMistakePractice, practiceQueue.length]);
+  }, [answer, attempts.length, currentExample, feedback, generateNext, isCalibration, questionTarget]);
 
   useEffect(() => {
     return () => {
@@ -230,18 +246,35 @@ export const Session = ({
           )}
         </div>
 
-        <button
-          className="rounded-xl border border-neutral-700 px-4 py-2 text-neutral-300 cursor-pointer"
-          onClick={onCancel}
-        >
-          Cancel
-        </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          {activeConfig.kind === 'untimed' && !isCalibration && (
+            <button
+              className="rounded-xl bg-white px-4 py-2 font-semibold text-neutral-950 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+              type="button"
+              disabled={attempts.length === 0 || feedback !== null}
+              onClick={() => setIsSessionComplete(true)}
+            >
+              Finish Session
+            </button>
+          )}
+          <button
+            className="rounded-xl border border-neutral-700 px-4 py-2 text-neutral-300 cursor-pointer"
+            type="button"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        </div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-4">
         <StatusCard
-          title={isMistakePractice ? "Remaining" : "Time"}
-          value={isMistakePractice ? Math.max(0, practiceQueue.length - attempts.length).toString() : `${timeLeft}s`}
+          title={activeConfig.kind === 'timed' ? "Time" : activeConfig.kind === 'questions' ? "Remaining" : "Format"}
+          value={activeConfig.kind === 'timed'
+            ? `${timeLeft}s`
+            : activeConfig.kind === 'questions'
+              ? Math.max(0, activeConfig.questionCount - attempts.length).toString()
+              : 'Untimed'}
         />
         <StatusCard title="Level" value={currentLevel.toString()} />
         <StatusCard title="Solved" value={attempts.length.toString()} />
