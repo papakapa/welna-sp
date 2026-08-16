@@ -74,6 +74,11 @@ export const Results = ({
             Focused practice complete. Your adaptive level was not changed.
           </p>
         )}
+        {result.sessionType === 'daily-coach' && (
+          <p className="mt-2 text-neutral-400">
+            Today’s workout is complete. Your coach has updated its next recommendation from these answers.
+          </p>
+        )}
       </header>
 
       <section className="rounded-3xl border border-neutral-800 bg-neutral-900 p-8 text-center">
@@ -278,12 +283,14 @@ const ComparisonCard = ({ title, value }: { title: string; value: string }) => (
 
 const getCompletionLabel = (result: SessionResult): string => {
   if (result.isCalibration) return 'Calibration Complete';
+  if (result.sessionType === 'daily-coach') return 'Daily Workout Complete';
   if (result.sessionType === 'mistake-practice') return 'Mistake Practice Complete';
   return 'Session Complete';
 };
 
 const getStartAgainLabel = (result: SessionResult): string => {
   if (result.isCalibration) return 'Start Training';
+  if (result.sessionType === 'daily-coach') return 'Repeat Workout';
   if (result.sessionType === 'mistake-practice') return 'Practice Again';
   return 'Start Again';
 };

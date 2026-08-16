@@ -5,6 +5,7 @@ import { Session } from './features/session/session';
 import { Results } from './features/results/results';
 import { loadState, type StoredState, saveState, defaultState } from './lib/storage';
 import { buildMistakePracticeQueue } from './engine/mistakes';
+import { buildDailyWorkoutPlan, type DailyWorkoutPlan } from './engine/daily-coach';
 
 export type Screen = "dashboard" | "training" | "results";
 
@@ -15,6 +16,16 @@ export const App = () => {
   const [latestResult, setLatestResult] = useState<SessionResult | null>(null);
   const [isCalibration, setIsCalibration] = useState(false);
   const [practiceExamples, setPracticeExamples] = useState<Example[]>([]);
+  const [activeDailyWorkout, setActiveDailyWorkout] = useState<DailyWorkoutPlan | null>(null);
+
+  const dailyWorkout = useMemo(
+    () => buildDailyWorkoutPlan(
+      storedState.sessions,
+      storedState.progress,
+      selectedMode,
+    ),
+    [selectedMode, storedState.progress, storedState.sessions],
+  );
 
   const currentLevel = useMemo(() => {
     if (selectedMode === TrainingMode.ADDITION) return storedState.progress.additionLevel;
@@ -26,6 +37,7 @@ export const App = () => {
     setSelectedMode(mode);
     setIsCalibration(false);
     setPracticeExamples([]);
+    setActiveDailyWorkout(null);
     setScreen("training");
   }, [setSelectedMode, setIsCalibration, setScreen]);
 
@@ -33,6 +45,7 @@ export const App = () => {
     setSelectedMode(mode);
     setIsCalibration(true);
     setPracticeExamples([]);
+    setActiveDailyWorkout(null);
     setScreen("training");
   }, [setSelectedMode, setIsCalibration, setScreen]);
 
@@ -43,8 +56,17 @@ export const App = () => {
     setSelectedMode(mode);
     setIsCalibration(false);
     setPracticeExamples(queue);
+    setActiveDailyWorkout(null);
     setScreen("training");
   }, [storedState.sessions]);
+
+  const startDailyWorkout = useCallback(() => {
+    setSelectedMode(dailyWorkout.mode);
+    setIsCalibration(false);
+    setPracticeExamples([]);
+    setActiveDailyWorkout(dailyWorkout);
+    setScreen("training");
+  }, [dailyWorkout]);
 
   const updateSessionConfig = useCallback((sessionConfig: SessionConfig) => {
     setStoredState((state) => {
@@ -56,7 +78,7 @@ export const App = () => {
 
   const handleFinish = useCallback((result: SessionResult) => {
     const nextState: StoredState = {
-      version: 4,
+      version: 5,
       progress: {
         ...storedState.progress,
         calibratedModes: result.isCalibration
@@ -107,6 +129,8 @@ export const App = () => {
             onStartMistakePractice={startMistakePractice}
             sessionConfig={storedState.sessionConfig}
             onSessionConfigChange={updateSessionConfig}
+            dailyWorkout={dailyWorkout}
+            onStartDailyWorkout={startDailyWorkout}
           />
         )}
 
@@ -119,15 +143,22 @@ export const App = () => {
             onCancel={() => setScreen("dashboard")}
             practiceExamples={practiceExamples}
             config={storedState.sessionConfig}
+            dailyWorkout={activeDailyWorkout}
           />
         )}
 
         {screen === "results" && latestResult && (
           <Results
             result={latestResult}
-            onStartAgain={() => latestResult.sessionType === 'mistake-practice'
-              ? startMistakePractice(latestResult.mode)
-              : startTraining(latestResult.mode)}
+            onStartAgain={() => {
+              if (latestResult.sessionType === 'mistake-practice') {
+                startMistakePractice(latestResult.mode);
+              } else if (latestResult.sessionType === 'daily-coach') {
+                startDailyWorkout();
+              } else {
+                startTraining(latestResult.mode);
+              }
+            }}
             onBackHome={() => setScreen("dashboard")}
             onPracticeMistakes={() => startMistakePractice(latestResult.mode)}
             sessions={storedState.sessions}

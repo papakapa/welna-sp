@@ -12,6 +12,7 @@ import {
   getComparableTrainingSessions,
   getPersonalBests,
 } from '../../engine/performance';
+import type { DailyWorkoutPlan } from '../../engine/daily-coach';
 
 interface DashboardProps {
   progress: DudeProgress;
@@ -24,6 +25,8 @@ interface DashboardProps {
   onStartMistakePractice: (mode: TrainingMode) => void;
   sessionConfig: SessionConfig;
   onSessionConfigChange: (config: SessionConfig) => void;
+  dailyWorkout: DailyWorkoutPlan;
+  onStartDailyWorkout: () => void;
 }
 
 export const Dashboard = ({
@@ -37,6 +40,8 @@ export const Dashboard = ({
   onStartMistakePractice,
   sessionConfig,
   onSessionConfigChange,
+  dailyWorkout,
+  onStartDailyWorkout,
 }: DashboardProps) => {
   const [isResetConfirmationOpen, setIsResetConfirmationOpen] = useState(false);
   const modeSessions = sessions.filter((session) => session.mode === selectedMode);
@@ -77,9 +82,41 @@ export const Dashboard = ({
         </p>
         <h1 className="text-4xl font-bold tracking-tight">Mental Math Trainer</h1>
         <p className="text-neutral-400">
-          One-minute sessions to train speed, accuracy, and raw calculation focus.
+          A focused daily plan for speed, accuracy, and raw calculation focus.
         </p>
       </header>
+
+      <section className="overflow-hidden rounded-3xl border border-sky-800 bg-gradient-to-br from-sky-950/80 to-neutral-900 p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-sky-400">Smart Daily Coach</p>
+            <h2 className="mt-2 text-3xl font-bold">Today’s workout</h2>
+            <p className="mt-2 max-w-xl text-sky-100/75">{dailyWorkout.explanation}</p>
+          </div>
+          <span className="rounded-full bg-sky-300 px-3 py-1 text-sm font-semibold text-sky-950">
+            {Math.round(dailyWorkout.durationSeconds / 60)} min
+          </span>
+        </div>
+
+        <ol className="mt-6 grid gap-2 sm:grid-cols-4">
+          {dailyWorkout.sections.map((section, index) => (
+            <li className="rounded-xl border border-sky-900/70 bg-neutral-950/60 p-3" key={section.phase}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-500">
+                {index + 1} · {section.durationSeconds}s
+              </p>
+              <p className="mt-1 font-semibold">{section.title}</p>
+              <p className="mt-1 text-xs text-neutral-400">{section.description}</p>
+            </li>
+          ))}
+        </ol>
+
+        <div className="mt-6">
+          <Button variant="primary" onClick={onStartDailyWorkout}>Start today’s workout</Button>
+        </div>
+        <p className="mt-3 text-xs text-neutral-500">
+          Runs locally. Three correct, on-pace answers retire a weakness until its spaced review is due.
+        </p>
+      </section>
 
       <section className="grid gap-3 sm:grid-cols-3">
         <LevelCard title="Addition" level={progress.additionLevel} />
@@ -91,7 +128,10 @@ export const Dashboard = ({
       </section>
 
       <section className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5">
-        <h2 className="mb-4 text-xl font-semibold">Choose mode</h2>
+        <div className="mb-4">
+          <p className="text-sm uppercase tracking-[0.2em] text-neutral-500">Optional</p>
+          <h2 className="mt-1 text-xl font-semibold">Custom practice</h2>
+        </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <ModeButton
@@ -266,6 +306,11 @@ const SessionCard = ({ session }: { session: SessionResult }) => {
           {session.sessionType === 'mistake-practice' && (
             <span className="rounded-full bg-sky-950 px-2 py-0.5 text-xs font-medium text-sky-300">
               Mistake practice
+            </span>
+          )}
+          {session.sessionType === 'daily-coach' && (
+            <span className="rounded-full bg-violet-950 px-2 py-0.5 text-xs font-medium text-violet-300">
+              Daily coach
             </span>
           )}
         </div>

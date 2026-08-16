@@ -21,6 +21,11 @@ import {
   addExampleToInitialSession,
   type InitialSessionState,
 } from "../../engine/initial-session";
+import {
+  generateDailyWorkoutExample,
+  getDailyWorkoutPhase,
+  type DailyWorkoutPlan,
+} from '../../engine/daily-coach';
 
 interface SessionProps {
   mode: TrainingMode;
@@ -30,6 +35,7 @@ interface SessionProps {
   onCancel: () => void;
   practiceExamples?: Example[];
   config: SessionConfig;
+  dailyWorkout?: DailyWorkoutPlan | null;
 }
 
 const EMPTY_PRACTICE_EXAMPLES: Example[] = [];
@@ -42,11 +48,15 @@ export const Session = ({
   onCancel,
   practiceExamples,
   config,
+  dailyWorkout,
 }: SessionProps) => {
   const practiceQueue = practiceExamples ?? EMPTY_PRACTICE_EXAMPLES;
   const isMistakePractice = practiceQueue.length > 0;
+  const isDailyWorkout = dailyWorkout !== null && dailyWorkout !== undefined;
   const activeConfig: SessionConfig = isCalibration
     ? { kind: 'timed', durationSeconds: 60 }
+    : isDailyWorkout
+      ? { kind: 'timed', durationSeconds: dailyWorkout.durationSeconds }
     : isMistakePractice
       ? { kind: 'questions', questionCount: practiceQueue.length }
       : config;
@@ -65,7 +75,7 @@ export const Session = ({
       : createSession({
         mode,
         level,
-        sessionType: isMistakePractice ? 'mistake-practice' : 'training',
+        sessionType: isDailyWorkout ? 'daily-coach' : isMistakePractice ? 'mistake-practice' : 'training',
         config: activeConfig,
       })
   );
@@ -123,7 +133,12 @@ export const Session = ({
     setNormalSession((session) => {
       if (!session) return session;
 
-      const example = isMistakePractice
+      const example = isDailyWorkout && dailyWorkout
+        ? generateDailyWorkoutExample(
+          dailyWorkout,
+          dailyWorkout.durationSeconds - timeLeft,
+        )
+        : isMistakePractice
         ? practiceQueue[session.attempts.length]
         : getNextExample(session);
       if (!example) return session;
@@ -132,7 +147,12 @@ export const Session = ({
 
       return addExampleToSession(session, example);
     });
-  }, [isCalibration, isMistakePractice, practiceQueue]);
+  }, [dailyWorkout, isCalibration, isDailyWorkout, isMistakePractice, practiceQueue, timeLeft]);
+
+  const dailyPhase = dailyWorkout
+    ? getDailyWorkoutPhase(dailyWorkout, dailyWorkout.durationSeconds - timeLeft)
+    : null;
+  const dailySection = dailyWorkout?.sections.find((section) => section.phase === dailyPhase);
 
   const finish = useEffectEvent(() => {
     if (isCalibration && initialSession) {
@@ -238,9 +258,14 @@ export const Session = ({
       <header className="flex items-start justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.3em] text-neutral-500">
-            {isCalibration ? "Calibration" : isMistakePractice ? "Mistake Practice" : "Training"}
+            {isCalibration ? "Calibration" : isDailyWorkout ? "Smart Daily Coach" : isMistakePractice ? "Mistake Practice" : "Training"}
           </p>
-          <h1 className="mt-2 text-3xl font-bold capitalize">{mode}</h1>
+          <h1 className="mt-2 text-3xl font-bold capitalize">
+            {isDailyWorkout ? dailySection?.title ?? "Today's workout" : mode}
+          </h1>
+          {isDailyWorkout && dailySection && (
+            <p className="mt-2 text-sm text-neutral-400">{dailySection.description}</p>
+          )}
           {isMistakePractice && (
             <p className="mt-2 text-sm text-neutral-500">Focused practice does not change your level.</p>
           )}
@@ -276,7 +301,10 @@ export const Session = ({
               ? Math.max(0, activeConfig.questionCount - attempts.length).toString()
               : 'Untimed'}
         />
-        <StatusCard title="Level" value={currentLevel.toString()} />
+        <StatusCard
+          title={isDailyWorkout ? "Phase" : "Level"}
+          value={isDailyWorkout ? `${(dailyWorkout?.sections.findIndex((section) => section.phase === dailyPhase) ?? 0) + 1}/4` : currentLevel.toString()}
+        />
         <StatusCard title="Solved" value={attempts.length.toString()} />
         <StatusCard title="Streak" value={currentStreak.toString()} />
       </section>

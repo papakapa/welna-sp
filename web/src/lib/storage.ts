@@ -13,14 +13,14 @@ import { clampLevel } from '../engine/level';
 export const STORAGE_KEY = "mental-math-progress-v1";
 
 export interface StoredState {
-  version: 4;
+  version: 5;
   progress: DudeProgress;
   sessions: SessionResult[];
   sessionConfig: SessionConfig;
 }
 
 export const defaultState: StoredState = {
-  version: 4,
+  version: 5,
   progress: {
     additionLevel: 1,
     multiplicationLevel: 1,
@@ -74,7 +74,7 @@ const migrateState = (value: unknown): StoredState => {
   );
 
   return {
-    version: 4,
+    version: 5,
     progress: {
       additionLevel: normalizeLevel(legacy.progress?.additionLevel),
       multiplicationLevel: normalizeLevel(legacy.progress?.multiplicationLevel),
@@ -201,7 +201,10 @@ const isTrainingMode = (value: unknown): value is TrainingMode => {
 };
 
 const isSessionType = (value: unknown): value is SessionType => {
-  return value === 'training' || value === 'calibration' || value === 'mistake-practice';
+  return value === 'training'
+    || value === 'calibration'
+    || value === 'mistake-practice'
+    || value === 'daily-coach';
 };
 
 const getLegacyCalibratedModes = (

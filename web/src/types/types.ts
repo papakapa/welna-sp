@@ -5,7 +5,7 @@ export const TrainingMode = {
 } as const;
 
 export type TrainingMode = typeof TrainingMode[keyof typeof TrainingMode];
-export type SessionType = 'training' | 'calibration' | 'mistake-practice';
+export type SessionType = 'training' | 'calibration' | 'mistake-practice' | 'daily-coach';
 export type SessionConfig =
   | { kind: 'timed'; durationSeconds: number }
   | { kind: 'questions'; questionCount: number }

@@ -81,7 +81,9 @@ export const submitAnswer = (
 }
 
 export const finishSession = (session: SessionState): SessionResult => {
-  const levelAfter = session.sessionType === 'mistake-practice' || session.config.kind === 'untimed'
+  const levelAfter = session.sessionType === 'mistake-practice'
+    || session.sessionType === 'daily-coach'
+    || session.config.kind === 'untimed'
     ? session.levelBefore
     : calculateNextLevel(session);
 
